@@ -20,15 +20,16 @@ firmware/
   standalone_demo.ino    — working OV2640 firmware (RGB565, ~15fps)
 
 hardware/
-  stl/                   — 3 STL files for printing
+  stl/                   — 2 STL files for printing
     ret-adapter-main-body.stl
     ret-adapter-lens-carriage.stl
-    ret-adapter-centering-ring.stl
   ret-adapter.scad       — parametric OpenSCAD design
+  generate_stl.py        — Python script to regenerate STLs
 
 docs/
   eyemote-pitch.md       — general pitch / grant proposal
   eyemote-pitch-lanier.md — pitch for Jaron Lanier / Microsoft Research
+  CITATIONS.md           — references and sources
 ```
 
 ## Print settings
@@ -37,16 +38,16 @@ docs/
 |------|----------|-------|----------|--------|
 | Main body | PETG | 0.15-0.2mm | None | 25% |
 | Lens carriage | PETG | 0.15mm | None | 25% |
-| Centering ring | PETG | 0.15mm | None | 25% |
 
 ## Assembly
 
-1. Glue centering ring into peephole socket
-2. Press 20D 55mm lens into lens carriage
-3. Insert OV2640 camera module into body, route FPC ribbon
-4. Slide lens carriage into front — friction fit for focus adjustment
-5. Mount XIAO + LiPo on back pocket, round display facing you
-6. Slide over retinoscope peephole tube (replaces rubber eyecup)
+1. Press 20D 55mm lens into lens carriage
+2. Insert OV2640 camera module into body pocket, route FPC ribbon through slot
+3. Slide lens carriage into front of body — twist to focus
+4. Mount XIAO + LiPo battery on the flat back pocket
+5. Round display mounts on the back facing you
+6. Slide peephole socket over retinoscope tube (replaces rubber eyecup)
+7. Twist lens carriage until reflex is sharp on screen
 
 ## BOM
 

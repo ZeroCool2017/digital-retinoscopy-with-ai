@@ -1,138 +1,161 @@
 /*
- * Eyemote Retinoscope Adapter
- * One-piece body + separate focus ring
+ * Eyemote Retinoscope Adapter — parametric OpenSCAD design
+ *
+ * A self-contained digital retinoscope head that replaces the
+ * rubber eyecup on any standard retinoscope.
+ *
+ * PARTS:
+ *   1. main_body()     — the body tube with peephole socket, camera pocket, lens bore
+ *   2. focus_ring()    — holds the 20D 55mm lens, slides into lens bore for focus
  *
  * PRINT SETTINGS:
- * - Material: PETG or PLA+
- * - Layer height: 0.15mm or 0.2mm
- * - Supports: NONE (bridges are designed in)
- * - Infill: 25%
- * - Orientation: print both parts with the large flat face down
- *
- * ASSEMBLY:
- * 1. Press 20D 55mm lens into focus ring (snug fit, or use a drop of CA glue)
- * 2. Slide focus ring into main body — twist to focus
- * 3. Insert OV2640 camera module into its pocket, route FPC ribbon through the slot
- * 4. XIAO ESP32S3 Sense sits in the back pocket with round display facing out
- * 5. Slide 4.54mm socket over retinoscope peephole (replace rubber eyecup)
- * 6. Twist focus ring until streak reflex is sharp on screen
+ *   Material: PETG
+ *   Layer: 0.15-0.2mm
+ *   Supports: NONE (bridges under 5mm)
+ *   Infill: 25%
+ *   Orient main body with large flat face down
  */
 
 // ═══════════════════════════════════════════════════
-//  PARAMETERS — change these to fit your parts
+//  PARAMETERS
 // ═══════════════════════════════════════════════════
 
-// Retinoscope
-peephole_od = 4.54;        // peephole tube outer diameter (mm)
-socket_depth = 12;          // how deep the socket goes over the tube
+// Retinoscope peephole
+PEEP_OD = 4.54;         // outer diameter of peephole tube (mm)
+SOCKET_DEPTH = 12;      // how deep the socket goes over the tube
 
-// Lens
-lens_dia    = 55;           // 20D lens outer diameter (mm)
-lens_thick  = 5;            // lens edge thickness (mm)
-lens_focal  = 50;           // 20D = 50mm focal length
-focus_travel = 15;          // how far the lens ring travels for focus (mm)
+// 20D magnifying lens
+LENS_DIA   = 55;         // outer diameter of the 20D lens (mm)
+LENS_THICK = 5;          // lens edge thickness (mm)
+LENS_FOCAL = 50;         // 20D = 50mm focal length (mm)
 
-// Camera module (OV2640 module)
-cam_w = 12;                 // module width (mm)
-cam_h = 10;                 // module height (mm)
-cam_d = 6;                  // module depth including lens (mm)
-cam_fpc_w = 4;              // FPC ribbon width (mm)
-
-// Body
-wall_thick = 2.5;           // wall thickness (mm)
-body_od = 22;               // outer diameter of the main tube (mm)
-clearance = 0.25;           // print clearance for sliding parts (mm)
+// Camera module (OV2640 for XIAO ESP32S3 Sense)
+CAM_W = 12;              // module width (mm)
+CAM_H = 10;              // module height (mm)
+CAM_D = 6;               // module depth including lens barrel (mm)
 
 // XIAO ESP32S3 Sense
-xiao_w = 21;
-xiao_h = 17.5;
-xiao_d = 4;
+XIAO_W = 21;
+XIAO_H = 17.5;
+XIAO_D = 4;
 
 // Round display (GC9A01)
-disp_dia = 27.5;
-disp_thick = 4;
-disp_r = disp_dia / 2;
+DISP_DIA = 27.5;
+DISP_THICK = 4;
 
-// ═══════════════════════════════════════════════════
-//  DERIVED VALUES
-// ═══════════════════════════════════════════════════
+// Body geometry
+WALL = 2.5;              // wall thickness (mm)
+CLEAR = 0.3;             // sliding clearance (mm)
 
-// Distance from lens back to camera sensor surface
-// 20D lens focal point is at 50mm. We want the sensor at roughly that distance.
-// Subtract half the lens thickness so sensor plane is at focal length
-optical_dist = lens_focal;  // 50mm from lens center to sensor
+// Derived
+SOCKET_OD = 14;          // outer diameter of the peephole socket
+BODY_ID = 18;            // inner diameter of the main body section
+LENS_BORE_ID = LENS_DIA + 0.8;  // bore for lens (with clearance, mm)
+LENS_BORE_OD = LENS_BORE_ID + 2*WALL;  // outer diameter at lens end
 
-// Tube IDs
-body_id = body_od - 2 * wall_thick;
-lens_bore_dia = lens_dia + 0.5;  // slightly oversized bore for the lens
+// Z-axis convention:
+// Z=0 = camera sensor plane
+// Negative Z = toward retinoscope (back)
+// Positive Z = toward lens (front)
+
+// Body section lengths
+BACK_LEN = 12;           // from peephole socket base to camera sensor (mm)
+BODY_LEN = 8;            // body section before flare (mm)
+FLARE_LEN = 10;          // length of the flare section (mm)
+LENS_SEAT_LEN = 8;       // depth of the lens holder section (mm)
+
+// Total body from sensor to tip
+TOTAL_FRONT = BODY_LEN + FLARE_LEN + LENS_SEAT_LEN;
+
+// Focus ring
+RING_H = LENS_THICK + 3 + 15;  // lens thickness + grip + focus travel
+RING_FLANGE_H = 2;              // thickness of the front retaining flange
 
 // ═══════════════════════════════════════════════════
 //  MODULE: Main body
 // ═══════════════════════════════════════════════════
 
 module main_body() {
+    // The body is built as a single piece and then we subtract all the hollow parts.
+    $fn = 64;
+    
     difference() {
+        // ── Solid body ──────────────────────────
         union() {
             // Peephole socket (small tube at back)
-            translate([0, 0, -socket_depth])
-            cylinder(d = peephole_od + 4*wall_thick, h = socket_depth, $fn = 32);
+            translate([0, 0, -SOCKET_DEPTH])
+            cylinder(d = SOCKET_OD, h = SOCKET_DEPTH + 0.5);
             
-            // Main tube
-            cylinder(d = body_od, h = optical_dist + lens_thick/2 + 10, $fn = 64);
+            // Main body tube (straight section)
+            cylinder(d = BODY_ID + 2*WALL, h = BODY_LEN);
             
-            // Lens seat (flared end)
-            translate([0, 0, optical_dist + lens_thick/2])
-            cylinder(d = body_od, h = 5, $fn = 64);
+            // Flare section (cone from body OD to lens bore OD)
+            translate([0, 0, BODY_LEN])
+            cylinder(
+                d1 = BODY_ID + 2*WALL,
+                d2 = LENS_BORE_ID + 2*WALL,
+                h = FLARE_LEN
+            );
             
-            // XIAO/Display pocket (box at back end)
-            translate([-xiao_w/2 - 2, -body_od/2 - 5, -5])
-            cube([xiao_w + 4, 5, 10]);
+            // Lens holder section (straight)
+            translate([0, 0, BODY_LEN + FLARE_LEN])
+            cylinder(d = LENS_BORE_ID + 2*WALL, h = LENS_SEAT_LEN);
+            
+            // Additional front lip
+            translate([0, 0, BODY_LEN + FLARE_LEN + LENS_SEAT_LEN])
+            cylinder(d = LENS_BORE_ID + 2*WALL + 2, h = 3);
         }
+        
+        // ── Subtractions ────────────────────────
         
         // Peephole bore
-        translate([0, 0, -socket_depth - 1])
-        cylinder(d = peephole_od + 0.3, h = socket_depth + 2, $fn = 32);
+        translate([0, 0, -SOCKET_DEPTH - 1])
+        cylinder(d = PEEP_OD + 0.3, h = SOCKET_DEPTH + 2);
         
-        // Main bore
+        // Main bore (camera section)
         translate([0, 0, -1])
-        cylinder(d = body_id, h = optical_dist + lens_thick/2 + 12, $fn = 64);
+        cylinder(d = BODY_ID, h = BODY_LEN + 2);
         
-        // Lens bore (at front)
-        translate([0, 0, optical_dist - lens_thick/2 - 1])
-        cylinder(d = lens_bore_dia, h = lens_thick + 6, $fn = 80);
+        // Flare bore
+        translate([0, 0, BODY_LEN - 1])
+        cylinder(
+            d1 = BODY_ID,
+            d2 = LENS_BORE_ID,
+            h = FLARE_LEN + 2
+        );
+        
+        // Lens bore
+        translate([0, 0, BODY_LEN + FLARE_LEN - 1])
+        cylinder(d = LENS_BORE_ID, h = LENS_SEAT_LEN + 5);
         
         // Camera module pocket
-        // Position: camera sensor at ~50mm from lens center
-        translate([0, 0, optical_dist - lens_thick/2 - cam_d - 2])
-        cube([cam_w + 1, cam_h + 1, cam_d + 2], center = true);
+        // Position: camera module sits ~10mm in front of sensor, on the tube wall
+        translate([0, BODY_ID/2, BODY_LEN/2])
+        cube([CAM_W + 1, CAM_D + 2, CAM_H + 1], center = true);
         
         // FPC ribbon slot
-        translate([cam_w/2 + 1, 0, optical_dist - lens_thick/2 - cam_d - 2])
-        cube([4, cam_fpc_w + 1, cam_d + 15], center = true);
+        translate([CAM_W/2 + 2, 0, BODY_LEN/2])
+        cube([3, 20, CAM_H/2 + 1], center = true);
         
-        // XIAO pocket slot
-        translate([0, -body_od/2 - 6, -xiao_d/2 - 2])
-        cube([xiao_w + 1, 6, xiao_d + 1], center = true);
+        // XIAO mount cutout (flat area on the side)
+        translate([0, -(BODY_ID + 2*WALL)/2 - 4, -3])
+        cube([XIAO_W + 4, 8, XIAO_D + 10], center = true);
         
-        // Display cutout
-        translate([0, -body_od/2 - 6, xiao_d - 1])
-        cylinder(d = disp_dia + 1, h = disp_thick + 2, $fn = 64);
-        
-        // Viewing hole through body for the screen
-        translate([0, -body_od/2 - 1, -1])
-        cylinder(d = 18, h = 4, $fn = 48);
-        
-        // Lightening / vent holes
-        for (i = [0 : 3]) {
-            rotate([0, 0, i * 90 + 20])
-            translate([body_od/2 + 1, 0, optical_dist/2])
-            rotate([90, 0, 0])
-            cylinder(d = 3, h = body_od + 2, $fn = 16);
-        }
+        // Display hole (viewing cutout through the body wall)
+        translate([0, -(BODY_ID + 2*WALL)/2 - 1, 4])
+        cylinder(d = 18, h = 8, $fn = 48);
         
         // USB access slot
-        translate([0, -body_od/2 - 1, -3])
-        cube([8, 4, 4], center = true);
+        translate([0, -(BODY_ID + 2*WALL)/2 - 1, -XIAO_D/2 - 2])
+        cube([9, 6, 5], center = true);
+        
+        // Weight relief holes
+        for (a = [0 : 60 : 300]) {
+            rotate([0, 0, a])
+            translate([(BODY_ID + 2*WALL)/2 + 1, 0, BODY_LEN/2])
+            rotate([90, 0, 0])
+            cylinder(d = 3, h = (BODY_ID + 2*WALL) + 2);
+        }
     }
 }
 
@@ -141,70 +164,54 @@ module main_body() {
 // ═══════════════════════════════════════════════════
 
 module focus_ring() {
-    ring_id = body_id - clearance * 2;
-    ring_od = body_id + 2 * wall_thick;
-    ring_h = lens_thick + 5 + focus_travel;
+    $fn = 64;
+    
+    ring_od = LENS_BORE_ID - CLEAR;        // slides inside the lens bore
+    ring_bore = LENS_DIA - 0.2;             // press-fit for the lens
     
     difference() {
-        union() {
-            // Outer ring body
-            cylinder(d = ring_od, h = ring_h, $fn = 64);
-            
-            // Lens retaining lip
-            translate([0, 0, ring_h - 1.5])
-            cylinder(d = lens_bore_dia - 1, h = 1.5, $fn = 80);
-        }
+        // Outer ring
+        cylinder(d = ring_od, h = RING_H);
         
-        // Inner bore (for the lens)
+        // Lens bore
         translate([0, 0, -1])
-        cylinder(d = lens_bore_dia - 2*clearance, h = ring_h + 2, $fn = 80);
+        cylinder(d = ring_bore, h = RING_H - LENS_THICK + 1);
         
-        // Lens seat (step for lens to rest against)
-        translate([0, 0, ring_h - lens_thick - 1])
-        cylinder(d = lens_dia - 1, h = lens_thick + 2, $fn = 80);
+        // Lens seat ledge (smaller ID so the lens rests on it)
+        translate([0, 0, RING_H - LENS_THICK - 1.5])
+        cylinder(d = LENS_DIA - 2, h = LENS_THICK + 2);
         
-        // Finger grooves for twisting
+        // Front access (lets light through to the lens)
+        translate([0, 0, -1])
+        cylinder(d = 45, h = 2);  // 45mm clear aperture
+        
+        // Finger grip grooves
         for (i = [0 : 11]) {
             rotate([0, 0, i * 30])
-            translate([ring_od/2 + 1, 0, ring_h/2])
+            translate([ring_od/2 + 1, 0, RING_H/2])
             rotate([90, 0, 0])
-            cylinder(d = 3, h = ring_od/2 + 2, $fn = 12);
+            cylinder(d = 3.5, h = ring_od/2 + 2);
         }
         
         // Lightening holes
         for (i = [0 : 5]) {
             rotate([0, 0, i * 60 + 15])
-            translate([(ring_od - 5)/2, 0, ring_h/2])
+            translate([(ring_od - 4)/2, 0, RING_H/2])
             rotate([90, 0, 0])
-            cylinder(d = 4, h = ring_od, $fn = 16);
+            cylinder(d = 5, h = ring_od);
         }
     }
 }
 
 // ═══════════════════════════════════════════════════
-//  RENDER — uncomment the part you want to export
+//  RENDER
 // ═══════════════════════════════════════════════════
 
-// Main body
+// Uncomment the part you want to export:
+
 // main_body();
+// translate([0, 0, TOTAL_FRONT + 10]) focus_ring();
 
-// Focus ring
-// focus_ring();
-
-// To see both aligned (for visualization only):
-// translate([0, 0, 50]) color("red") focus_ring();
-// color("blue") main_body();
-
-// ═══════════════════════════════════════════════════
-//  INSTRUCTIONS
-// ═══════════════════════════════════════════════════
-//
-// 1. Open this file in OpenSCAD (free from openscad.org)
-// 2. To export the main body:
-//    - Comment out "focus_ring()" at the bottom
-//    - Uncomment "main_body()"
-//    - Preview (F5) then Render (F6) then Export STL (F7)
-// 3. To export the focus ring:
-//    - Comment out "main_body()"
-//    - Uncomment "focus_ring()"
-//    - Repeat export
+// Assembly view:
+// color("gray", 0.5) main_body();
+// translate([0, 0, 55]) color("orange") focus_ring();
